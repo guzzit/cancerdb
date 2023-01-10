@@ -1,8 +1,8 @@
 
-type Page_Num = u64;
+pub type PageNum = u64;
 
 pub struct Freelist {
-   max_page: Page_Num,
+   max_page: PageNum,
    released_pages: Vec<u64>,
 }
 
@@ -14,7 +14,7 @@ impl Freelist {
         }
     }
      
-    pub fn get_next_page(&mut self) -> Page_Num {
+    pub fn get_next_page(&mut self) -> PageNum {
         let next_page = self.released_pages.iter().take(1).next();
     
         if let Some(page) = next_page {
@@ -27,7 +27,7 @@ impl Freelist {
             
     }
 
-    fn release_page(&mut self, page_num: Page_Num) {
+    fn release_page(&mut self, page_num: PageNum) {
         self.released_pages.push(page_num);
         
     }
