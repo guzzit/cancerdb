@@ -15,6 +15,7 @@ pub struct Dal {
    file: File,
    page_size: u64,
    pub freelist: Freelist,
+   pub meta: Meta,
 }
 
 impl Dal {
@@ -23,7 +24,8 @@ impl Dal {
         Ok(Dal {
             file,
             page_size: u64::try_from(PAGE_SIZE).unwrap(),
-            freelist: Freelist::new()
+            freelist: Freelist::new(),
+            meta: Meta::new(),
         })
     }
 
@@ -50,14 +52,8 @@ impl Dal {
         self.file.write_all_at(&page.data, offset)?;
         Ok(())
         //dal.file.write(&page.data)
-    }    
+    }  
     
-    fn write_meta(&self, meta: Meta) -> Result<Page, io::Error> {
-        let mut page = self.allocate_empty_page(META_PAGE_NUM);
-        meta.serialize(&mut page.data);
-        Ok(page)
-    }
-
     fn read_meta(&mut self) -> Result<Meta, io::Error> {
         let page = self.read_page(META_PAGE_NUM).unwrap();
         let mut page_data = [0u8; 8];
@@ -66,6 +62,27 @@ impl Dal {
         meta.deserialize(&page_data);
         Ok(meta)
     }
+    
+    fn write_meta(&self, meta: Meta) -> Result<Page, io::Error> {
+        let mut page = self.allocate_empty_page(META_PAGE_NUM);
+        meta.serialize(&mut page.data);
+        Ok(page)
+    }
+
+    // fn read_freelist(&mut self) -> Result<Freelist, io::Error> {
+    //     let page = self.read_page(self.meta.freelist_page.unwrap()).unwrap();
+    //     self.freelist.deserializ(&page.data);
+        
+    //     Ok(self)
+    // }
+
+    fn write_freelist(&self, freelist: Freelist) -> Result<Page, io::Error> {
+        let mut page = self.allocate_empty_page(META_PAGE_NUM);
+        freelist.serializ(&mut page.data, page.num);
+        Ok(page)
+    }
+
+    
     // function for close?
     
 }

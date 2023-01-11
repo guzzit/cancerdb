@@ -5,17 +5,17 @@ pub const META_PAGE_NUM:u64 = 0;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Meta {
-    free_list_page: Option<PageNum>
+    pub freelist_page: Option<PageNum>
 }
 
 impl Meta {
     pub fn new() -> Self {
-        Meta { free_list_page: None }
+        Meta { freelist_page: None }
     }
 
     pub fn serialize<const A: usize>(&self, arr: &mut[u8; A]) {
         //
-        let page_num = self.free_list_page.unwrap();
+        let page_num = self.freelist_page.unwrap();
 
         let odd_or_even = page_num & 1;
         if page_num & 1 == 1 {
@@ -44,7 +44,7 @@ impl Meta {
     }
 
     pub fn deserialize(&mut self, array: &[u8; 8]) {
-        self.free_list_page = Some(self.byte_to_u64(array));
+        self.freelist_page = Some(self.byte_to_u64(array));
     }
 
     
