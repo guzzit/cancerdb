@@ -1,8 +1,8 @@
 
 
 use std::error::Error;
-use std::fs::{self, File};
-use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Seek, SeekFrom, Write, ErrorKind};
 use std::os::unix::prelude::FileExt;
 
 use crate::freelist::{self, Freelist};
@@ -20,13 +20,39 @@ pub struct Dal {
 
 impl Dal {
     pub fn build(path: &str) -> Result<Self, io::Error> {
-        let file = fs::File::create(path)?;
-        Ok(Dal {
-            file,
-            page_size: u64::try_from(PAGE_SIZE).unwrap(),
-            freelist: Freelist::new(),
-            meta: Meta::new(),
-        })
+        /// OpenOptions::new().create(true).write(true).read(true).open(path)?; //fs::File::create(path)?;
+
+        
+        let file = fs::File::open(path);
+        let dal = match file {
+            Ok(file) => {
+                let mut a = Dal {
+                    file,
+                    page_size: u64::try_from(PAGE_SIZE).unwrap(),
+                    freelist: Freelist::new(),
+                    meta: Meta::new(),
+                };
+
+                a.read_freelist()?;
+                a.read_meta()?;
+                a
+            },
+            Err(error) => match error.kind() {
+                ErrorKind::NotFound => match File::create(path) {
+                    Ok(file) => { Dal {
+                        file,
+                        page_size: u64::try_from(PAGE_SIZE).unwrap(),
+                        freelist: Freelist::new(),
+                        meta: Meta::new(),
+                    }},
+                    Err(e) => panic!("Problem creating the file: {:?}", e),
+                },
+                other_error => {
+                    panic!("Problem opening the file: {:?}", other_error);
+                }
+            },
+        };
+        Ok(dal)
     }
 
     pub fn allocate_empty_page(&self, page_num: u64) -> Page {
@@ -54,13 +80,14 @@ impl Dal {
         //dal.file.write(&page.data)
     }  
     
-    fn read_meta(&mut self) -> Result<Meta, io::Error> {
+    fn read_meta(&mut self) -> Result<(), io::Error> {
         let page = self.read_page(META_PAGE_NUM).unwrap();
         let mut page_data = [0u8; 8];
         page_data.copy_from_slice(&page.data[..7]);
-        let mut meta = Meta::new();
-        meta.deserialize(&page_data);
-        Ok(meta)
+        self.meta.deserialize(&page_data);
+        //let mut meta = Meta::new();
+        //meta.deserialize(&page_data);
+        Ok(())
     }
     
     fn write_meta(&self, meta: Meta) -> Result<Page, io::Error> {
@@ -69,16 +96,16 @@ impl Dal {
         Ok(page)
     }
 
-    // fn read_freelist(&mut self) -> Result<Freelist, io::Error> {
-    //     let page = self.read_page(self.meta.freelist_page.unwrap()).unwrap();
-    //     self.freelist.deserializ(&page.data);
-        
-    //     Ok(self)
-    // }
+    fn read_freelist(&mut self) -> Result<(), io::Error> {
+        let page = self.read_page(self.meta.freelist_page.unwrap()).unwrap();
+        //let mut freelist = Freelist::new();
+        self.freelist.deserialize(&page.data);
+        Ok(())
+    }
 
     fn write_freelist(&self, freelist: Freelist) -> Result<Page, io::Error> {
-        let mut page = self.allocate_empty_page(META_PAGE_NUM);
-        freelist.serializ(&mut page.data, page.num);
+        let mut page = self.allocate_empty_page(self.meta.freelist_page.unwrap());
+        freelist.serialize(&mut page.data);
         Ok(page)
     }
 

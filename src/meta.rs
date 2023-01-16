@@ -14,9 +14,10 @@ impl Meta {
     }
 
     pub fn serialize<const A: usize>(&self, arr: &mut[u8; A]) {
-        //
+        
         let page_num = self.freelist_page.unwrap();
 
+        //
         let odd_or_even = page_num & 1;
         if page_num & 1 == 1 {
             print!("odd");
@@ -24,23 +25,12 @@ impl Meta {
         else {
             print!("even");
         }
+        //
+
         let page_num :[u8; 8]= page_num.to_le_bytes();
         assert!(A >= page_num.len()); //just for a nicer error message, adding #[track_caller] to the function may also be desirable
 
         arr[..A].copy_from_slice(&page_num);
-
-       
-        
-        //
-        // let serialized = serde_json::to_string(&self).unwrap();
-        // let meta = serialized.as_bytes();
-
-        // let meta = bincode::serialize(&self).unwrap();
-        // let meta = bincode::serialize(&self).unwrap();
-        
-        // let meta = meta.into_boxed_slice();
-
-        // *meta
     }
 
     pub fn deserialize(&mut self, array: &[u8; 8]) {
