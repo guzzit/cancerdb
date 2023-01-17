@@ -40,15 +40,20 @@ impl Freelist {
     pub fn serialize<const A: usize>(& self, arr: &mut[u8; A]) {
         let page_count:u64 = u64::try_from(self.released_pages.len()).unwrap();
         
-        self.serializ(arr, self.max_page);
-        self.serializ(arr, page_count);
+        self.serializ(&mut arr[0..8], self.max_page);
+        self.serializ(&mut arr[8..16], page_count);
 
+
+        let mut starting_index = 8;
         for ele in self.released_pages.iter() {
-            self.serializ(arr, ele.clone());
+            let ending_index :usize= starting_index + 8;
+            self.serializ(&mut arr[starting_index..ending_index], ele.clone());
+            starting_index = starting_index.saturating_add(8);
         }
 
     }
 
+    //what's the point of the page count?
     pub fn deserialize<const A: usize>(&mut self, arr: &[u8; A]) {
         //let max_page:u64 = self.deserializ(&arr);
         
@@ -57,9 +62,11 @@ impl Freelist {
         self.max_page = self.byte_to_u64( a.nth(0).unwrap());
         let page_count = self.byte_to_u64( a.nth(0).unwrap());
 
-        for ele in a {
-            let val = self.byte_to_u64(ele);
-            self.released_pages.push(val);           
+        let mut i = 0;
+        while i < page_count {
+            let val = self.byte_to_u64(a.nth(0).unwrap());
+            self.released_pages.push(val);   
+            i = i + 1;        
         }
 
     }
@@ -92,12 +99,12 @@ impl Freelist {
     //     array;
     // }
 
-    fn serializ<const A: usize>(&self, arr: &mut[u8; A], num:u64) {
+    fn serializ(&self, arr: &mut[u8], num:u64) {
         
         let num :[u8; 8]= num.to_le_bytes();
-        assert!(A >= num.len()); //just for a nicer error message, adding #[track_caller] to the function may also be desirable
+        //assert!(A >= num.len()); //just for a nicer error message, adding #[track_caller] to the function may also be desirable
 
-        arr[..A].copy_from_slice(&num);
+        arr[..8].copy_from_slice(&num);
 
        
     }

@@ -3,7 +3,7 @@ use libradb::meta::Meta;
 
 
 fn main() {
-    dbg!(std::mem::size_of::<Meta>());
+    //dbg!(std::mem::size_of::<Meta>());
 
     let db_path = "db.db";
     let dal = Dal::build(db_path);
@@ -16,8 +16,9 @@ fn main() {
         //page.num = Some(page_num);
         //let a = b"jrk".to_owned();
 
-        page.data = pad_zeroes(b"Sherlock Bones".to_owned());  
-        dal.write_page(&page);
+        page.data = pad_zeroes(b"No shit Sherlock".to_owned());  
+        dal.write_page(&page).unwrap();
+        
 
     }
     else{

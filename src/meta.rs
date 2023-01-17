@@ -30,7 +30,7 @@ impl Meta {
         let page_num :[u8; 8]= page_num.to_le_bytes();
         assert!(A >= page_num.len()); //just for a nicer error message, adding #[track_caller] to the function may also be desirable
 
-        arr[..A].copy_from_slice(&page_num);
+        arr[..8].copy_from_slice(&page_num);
     }
 
     pub fn deserialize(&mut self, array: &[u8; 8]) {
