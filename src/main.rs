@@ -1,5 +1,5 @@
-use libradb::{dal::{Dal, PAGE_SIZE}};
-use libradb::meta::Meta;
+use cancerdb::{dal::{Dal, PAGE_SIZE}};
+use cancerdb::meta::Meta;
 
 
 fn main() {

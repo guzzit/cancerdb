@@ -7,16 +7,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'libradb'",
+            "name": "Debug unit tests in cancerry 'cancerdb'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
                     "--lib",
-                    "--package=libradb"
+                    "--package=cancerdb"
                 ],
                 "filter": {
-                    "name": "libradb",
+                    "name": "cancerdb",
                     "kind": "lib"
                 }
             },
@@ -26,15 +26,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'libradb'",
+            "name": "Debug executable 'cancerdb'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=libradb",
-                    "--package=libradb"
+                    "--bin=cancerdb",
+                    "--package=cancerdb"
                 ],
                 "filter": {
-                    "name": "libradb",
+                    "name": "cancerdb",
                     "kind": "bin"
                 }
             },
@@ -44,16 +44,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'libradb'",
+            "name": "Debug unit tests in executable 'cancerdb'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=libradb",
-                    "--package=libradb"
+                    "--bin=cancerdb",
+                    "--package=cancerdb"
                 ],
                 "filter": {
-                    "name": "libradb",
+                    "name": "cancerdb",
                     "kind": "bin"
                 }
             },
