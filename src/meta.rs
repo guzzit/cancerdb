@@ -1,9 +1,6 @@
-use crate::freelist::PageNum;
-use serde::{Serialize, Deserialize};
+use crate::{freelist::PageNum, constants::BYTES_IN_U64};
 
-pub const META_PAGE_NUM:u64 = 0;
 
-#[derive(Serialize, Deserialize, Debug)]
 pub struct Meta {
     pub freelist_page: Option<PageNum>
 }
@@ -13,7 +10,7 @@ impl Meta {
         Meta { freelist_page: None }
     }
 
-    pub fn serialize<const A: usize>(&self, arr: &mut[u8; A]) {
+    pub fn serialize(&self, arr: &mut[u8]) {
         
         let page_num = self.freelist_page.unwrap();
 
@@ -25,19 +22,18 @@ impl Meta {
         //     print!("even");
         // }
 
-        let page_num :[u8; 8]= page_num.to_le_bytes();
-        assert!(A >= page_num.len()); //just for a nicer error message, adding #[track_caller] to the function may also be desirable
+        let page_num :[u8; BYTES_IN_U64]= page_num.to_le_bytes();
 
-        arr[..8].copy_from_slice(&page_num);
+        arr[..BYTES_IN_U64].copy_from_slice(&page_num);
     }
 
-    pub fn deserialize(&mut self, array: &[u8; 8]) {
+    pub fn deserialize(&mut self, array: &[u8; BYTES_IN_U64]) {
         self.freelist_page = Some(self.byte_to_u64(array));
     }
     
     // indicate whether little or big endian
     // also might have to put this method in a utility struct
-    fn byte_to_u64 (&mut self, array: &[u8; 8]) -> u64 {
+    fn byte_to_u64 (&mut self, array: &[u8; BYTES_IN_U64]) -> u64 {
         ((array[0] as u64) <<  0) +
         ((array[1] as u64) <<  8) +
         ((array[2] as u64) << 16) +

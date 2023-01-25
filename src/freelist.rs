@@ -1,3 +1,5 @@
+use crate::constants::BYTES_IN_U64;
+
 
 pub type PageNum = u64;
 
@@ -7,7 +9,6 @@ pub struct Freelist {
 }
 
 const META_PAGE:u64 = 0;
-const BYTES_IN_U64:usize = 8;
 
 impl Freelist {
     pub fn new() -> Self {

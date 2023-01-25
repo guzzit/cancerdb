@@ -3,7 +3,8 @@ use std::io::{self, ErrorKind};
 use std::os::unix::prelude::FileExt;
 
 use crate::freelist::Freelist;
-use crate::meta::{Meta, META_PAGE_NUM};
+use crate::constants::{META_PAGE_NUM, BYTES_IN_U64};
+use crate::meta::Meta;
 
 
 pub const PAGE_SIZE:usize = 1024 * 4;
@@ -94,7 +95,7 @@ impl Dal {
     
     fn write_meta(&mut self) -> Result<Page, io::Error> {
         let mut page = self.allocate_empty_page(META_PAGE_NUM);
-        self.meta.serialize(&mut page.data);
+        self.meta.serialize(&mut page.data[0..BYTES_IN_U64]);
         self.write_to_disk(&page).unwrap();
         
         Ok(page)
