@@ -7,6 +7,7 @@ pub struct Freelist {
 }
 
 const META_PAGE:u64 = 0;
+const BYTES_IN_U64:usize = 8;
 
 impl Freelist {
     pub fn new() -> Self {
@@ -40,47 +41,36 @@ impl Freelist {
     pub fn serialize<const A: usize>(& self, arr: &mut[u8; A]) {
         let page_count:u64 = u64::try_from(self.released_pages.len()).unwrap();
         
-        self.serializ(&mut arr[0..8], self.max_page);
-        self.serializ(&mut arr[8..16], page_count);
+        self.u64_to_bytes(&mut arr[0..BYTES_IN_U64], self.max_page);
+        self.u64_to_bytes(&mut arr[BYTES_IN_U64..BYTES_IN_U64*2], page_count);
 
 
         let mut starting_index = 8;
         for ele in self.released_pages.iter() {
-            let ending_index :usize= starting_index + 8;
-            self.serializ(&mut arr[starting_index..ending_index], ele.clone());
+            let ending_index :usize= starting_index + BYTES_IN_U64;
+            self.u64_to_bytes(&mut arr[starting_index..ending_index], ele.clone());
             starting_index = starting_index.saturating_add(8);
         }
 
     }
 
-    //what's the point of the page count?
-    pub fn deserialize<const A: usize>(&mut self, arr: &[u8; A]) {
-        //let max_page:u64 = self.deserializ(&arr);
-        
-        let mut a = arr.chunks_exact(8); //let b = arr.chunks_exact(8);
-
-        self.max_page = self.byte_to_u64( a.nth(0).unwrap());
-        let page_count = self.byte_to_u64( a.nth(0).unwrap());
+    pub fn deserialize<const A: usize>(&mut self, arr: &[u8; A]) {        
+        let mut chunks = arr.chunks_exact(BYTES_IN_U64); 
+        self.max_page = self.bytes_to_u64( chunks.nth(0).unwrap());
+        let page_count = self.bytes_to_u64( chunks.nth(0).unwrap());
 
         let mut i = 0;
         while i < page_count {
-            let val = self.byte_to_u64(a.nth(0).unwrap());
+            let val = self.bytes_to_u64(chunks.nth(0).unwrap());
             self.released_pages.push(val);   
             i = i + 1;        
         }
 
     }
 
-    fn deserializ<const A: usize>(&mut self, array: &[u8; A]) -> u64 {
-        let mut l = [0u8; 8];
-        l[..8].copy_from_slice(&array[0..8]);
-        self.byte_to_u64(&l)
-       // let a = &array[0..8].c;
-
-    }
-
-    
-    fn byte_to_u64 (&mut self, array: &[u8]) -> u64 {
+    // indicate whether little or big endian
+    // also might have to put this method in a utility struct
+    fn bytes_to_u64 (&mut self, array: &[u8]) -> u64 {
         ((array[0] as u64) <<  0) +
         ((array[1] as u64) <<  8) +
         ((array[2] as u64) << 16) +
@@ -91,21 +81,8 @@ impl Freelist {
         ((array[7] as u64) << 56) 
     }
 
-    // fn  PutUint32(array: &[u8; 4], v: u32) {
-    //     array[0] = v.to_le_bytes();
-    //     array[1] = v >> 8;
-    //     array[2] = v >> 16;
-    //     array[3] = v >> 24;
-    //     array;
-    // }
-
-    fn serializ(&self, arr: &mut[u8], num:u64) {
-        
-        let num :[u8; 8]= num.to_le_bytes();
-        //assert!(A >= num.len()); //just for a nicer error message, adding #[track_caller] to the function may also be desirable
-
-        arr[..8].copy_from_slice(&num);
-
-       
+    fn u64_to_bytes(&self, arr: &mut[u8], num:u64) {
+        let num :[u8; BYTES_IN_U64]= num.to_le_bytes();
+        arr[..BYTES_IN_U64].copy_from_slice(&num);
     }
 }

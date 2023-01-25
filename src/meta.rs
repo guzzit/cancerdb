@@ -17,15 +17,13 @@ impl Meta {
         
         let page_num = self.freelist_page.unwrap();
 
-        //
-        let odd_or_even = page_num & 1;
-        if page_num & 1 == 1 {
-            print!("odd");
-        }
-        else {
-            print!("even");
-        }
-        //
+        // let odd_or_even = page_num & 1;
+        // if page_num & 1 == 1 {
+        //     print!("odd");
+        // }
+        // else {
+        //     print!("even");
+        // }
 
         let page_num :[u8; 8]= page_num.to_le_bytes();
         assert!(A >= page_num.len()); //just for a nicer error message, adding #[track_caller] to the function may also be desirable
@@ -36,8 +34,9 @@ impl Meta {
     pub fn deserialize(&mut self, array: &[u8; 8]) {
         self.freelist_page = Some(self.byte_to_u64(array));
     }
-
     
+    // indicate whether little or big endian
+    // also might have to put this method in a utility struct
     fn byte_to_u64 (&mut self, array: &[u8; 8]) -> u64 {
         ((array[0] as u64) <<  0) +
         ((array[1] as u64) <<  8) +
@@ -48,17 +47,5 @@ impl Meta {
         ((array[6] as u64) << 48) +
         ((array[7] as u64) << 56) 
     }
-    
-fn as_u32_le(array: &[u8; 4]) -> u32 {
-    ((array[0] as u32) <<  0) +
-    ((array[1] as u32) <<  8) +
-    ((array[2] as u32) << 16) +
-    ((array[3] as u32) << 24)
-}
 
-
-
-    // fn deserialize<const A: usize>(&self, arr: &mut[u8; A]) {
-    //     let free_list_page:u64 = arr.try_into().unwrap();
-    // }
 }
