@@ -89,13 +89,14 @@ impl Dal {
         let mut page_data = [0u8; 8];
         page_data.copy_from_slice(&page.data[..8]);
         self.meta.deserialize(&page_data);
-       
+        
         Ok(())
     }
     
     fn write_meta(&mut self) -> Result<Page, io::Error> {
-        let mut page = self.allocate_empty_page(META_PAGE_NUM);
-        self.meta.serialize(&mut page.data[0..BYTES_IN_U64]);
+        let mut page = self.allocate_empty_page(META_PAGE_NUM); 
+        //let a:&mut [u8;8] = &mut page.data[..8].try_into().unwrap();
+        self.meta.serialize(&mut page.data[..BYTES_IN_U64]);
         self.write_to_disk(&page).unwrap();
         
         Ok(page)

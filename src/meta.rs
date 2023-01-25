@@ -10,6 +10,7 @@ impl Meta {
         Meta { freelist_page: None }
     }
 
+    //need to find a way to make arr type &mut[u8;BYTES_IN_U64]
     pub fn serialize(&self, arr: &mut[u8]) {
         
         let page_num = self.freelist_page.unwrap();
@@ -28,7 +29,8 @@ impl Meta {
     }
 
     pub fn deserialize(&mut self, array: &[u8; BYTES_IN_U64]) {
-        self.freelist_page = Some(self.byte_to_u64(array));
+        //self.freelist_page = Some(self.byte_to_u64(array));
+        self.freelist_page = Some(u64::from_le_bytes(array.clone()));
     }
     
     // indicate whether little or big endian
