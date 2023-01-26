@@ -1,8 +1,8 @@
-use crate::{freelist::PageNum, constants::BYTES_IN_U64};
+use crate::{freelist::PageNumber, constants::BYTES_IN_U64};
 
 
 pub struct Meta {
-    pub freelist_page: Option<PageNum>
+    pub freelist_page: Option<PageNumber>
 }
 
 impl Meta {

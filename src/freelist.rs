@@ -1,10 +1,10 @@
 use crate::constants::BYTES_IN_U64;
 
 
-pub type PageNum = u64;
+pub type PageNumber = u64;
 
 pub struct Freelist {
-   max_page: PageNum,
+   max_page: PageNumber,
    released_pages: Vec<u64>,
 }
 
@@ -19,7 +19,7 @@ impl Freelist {
     }
      
     // if page taken isn't used, add back?
-    pub fn get_next_page(&mut self) -> PageNum {
+    pub fn get_next_page(&mut self) -> PageNumber {
         let next_page = self.released_pages.iter().take(1).next();
     
         if let Some(page) = next_page {
@@ -34,7 +34,7 @@ impl Freelist {
 
     // should there be a check to ensure that the page is empty? or at least to 
     // clear the page to be extra sure it's empty
-    fn release_page(&mut self, page_num: PageNum) {
+    fn release_page(&mut self, page_num: PageNumber) {
         self.released_pages.push(page_num);
         
     }
@@ -42,7 +42,7 @@ impl Freelist {
     pub fn serialize<const A: usize>(& self, arr: &mut[u8; A]) {
         let page_count:u64 = u64::try_from(self.released_pages.len()).unwrap();
         
-        self.u64_to_bytes(&mut arr[0..BYTES_IN_U64], self.max_page);
+        self.u64_to_bytes(&mut arr[..BYTES_IN_U64], self.max_page);
         self.u64_to_bytes(&mut arr[BYTES_IN_U64..BYTES_IN_U64*2], page_count);
 
 
