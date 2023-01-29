@@ -1,3 +1,5 @@
+use std::io::{self, ErrorKind};
+
 use crate::{freelist::PageNumber, constants::BYTES_IN_U64};
 
 
@@ -11,9 +13,9 @@ impl Meta {
     }
 
     //need to find a way to make arr type &mut[u8;BYTES_IN_U64]
-    pub fn serialize(&self, arr: &mut[u8]) {
+    pub fn serialize(&self, arr: &mut[u8; BYTES_IN_U64]) -> Result<(), io::Error>{
         
-        let page_num = self.freelist_page.unwrap();
+        let page_num = self.freelist_page.ok_or_else(|| ErrorKind::InvalidData)?;
 
         // let odd_or_even = page_num & 1;
         // if page_num & 1 == 1 {
@@ -26,6 +28,8 @@ impl Meta {
         let page_num :[u8; BYTES_IN_U64]= page_num.to_le_bytes();
 
         arr[..BYTES_IN_U64].copy_from_slice(&page_num);
+
+        Ok(())
     }
 
     pub fn deserialize(&mut self, array: &[u8; BYTES_IN_U64]) {

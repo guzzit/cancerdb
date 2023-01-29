@@ -26,7 +26,7 @@ impl Dal {
             Ok(file) => {
                 let mut a = Dal {
                     file,
-                    page_size: u64::try_from(PAGE_SIZE).unwrap(),
+                    page_size: u64::try_from(PAGE_SIZE).unwrap_or_else(|_| 1024 * 4),
                     freelist: Freelist::new(),
                     meta: Meta::new(),
                 };
@@ -39,7 +39,7 @@ impl Dal {
                 ErrorKind::NotFound => match File::create(path) {
                     Ok(file) => { let mut a = Dal {
                         file,
-                        page_size: u64::try_from(PAGE_SIZE).unwrap(),
+                        page_size: u64::try_from(PAGE_SIZE).unwrap_or_else(|_| 1024 * 4),
                         freelist: Freelist::new(),
                         meta: Meta::new(),
                     };
@@ -85,7 +85,7 @@ impl Dal {
     }  
     
     fn read_meta(&mut self) -> Result<(), io::Error> {
-        let page = self.read_page(META_PAGE_NUM).unwrap();
+        let page = self.read_page(META_PAGE_NUM)?;
         let mut page_data = [0u8; 8];
         page_data.copy_from_slice(&page.data[..8]);
         self.meta.deserialize(&page_data);
@@ -94,25 +94,29 @@ impl Dal {
     }
     
     fn write_meta(&mut self) -> Result<Page, io::Error> {
-        let mut page = self.allocate_empty_page(META_PAGE_NUM); 
-        //let a:&mut [u8;8] = &mut page.data[..8].try_into().unwrap();
-        self.meta.serialize(&mut page.data[..BYTES_IN_U64]);
-        self.write_to_disk(&page).unwrap();
+        let page = self.allocate_empty_page(META_PAGE_NUM); 
+        let page_data_slice:&mut [u8;8] = &mut page.data[..BYTES_IN_U64].try_into()
+        //.map_err( |e| io::Error::new(ErrorKind::InvalidData, e))?;
+        .map_err( |_| ErrorKind::InvalidData)?;
+        self.meta.serialize(page_data_slice)?;
+        self.write_to_disk(&page)?;
         
         Ok(page)
     }
 
     fn read_freelist(&mut self) -> Result<(), io::Error> {
-        let page = self.read_page(self.meta.freelist_page.unwrap()).unwrap();
-        self.freelist.deserialize(&page.data);
+        let freelist_page = self.meta.freelist_page.ok_or_else(|| ErrorKind::InvalidData)?;
+        let page = self.read_page(freelist_page)?;
+        self.freelist.deserialize(&page.data)?;
 
         Ok(())
     }
 
     fn write_freelist(&mut self) -> Result<Page, io::Error> {
-        let mut page = self.allocate_empty_page(self.meta.freelist_page.unwrap());
-        self.freelist.serialize(&mut page.data); 
-        self.write_to_disk(&page).unwrap();
+        let freelist_page = self.meta.freelist_page.ok_or_else(|| ErrorKind::InvalidData)?;
+        let mut page = self.allocate_empty_page(freelist_page);
+        self.freelist.serialize(&mut page.data)?; 
+        self.write_to_disk(&page)?;
         
         Ok(page)
     }
