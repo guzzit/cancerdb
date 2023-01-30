@@ -41,10 +41,10 @@ impl Freelist {
         
     }
 
-    pub fn serialize<const A: usize>(& self, arr: &mut[u8; A]) -> Result<(), io::Error> {
+    pub fn serialize<const A: usize>(&self, arr: &mut[u8; A]) -> Result<(), io::Error> {
 
-        //the 8 stands for each byte, the 2 is for page_count and max_space
-        let total_space_needed = 8 * (self.released_pages.len() + 2);
+        // the 2 is for page_count and max_space
+        let total_space_needed = BYTES_IN_U64 * (self.released_pages.len() + 2);
 
         if total_space_needed > A {
             return Err(Error::new(ErrorKind::InvalidData, 
@@ -59,11 +59,11 @@ impl Freelist {
         self.u64_to_bytes(&mut arr[BYTES_IN_U64..BYTES_IN_U64*2], page_count);
 
 
-        let mut starting_index = 8;
-        for ele in self.released_pages.iter() {
+        let mut starting_index = BYTES_IN_U64*2;
+        for released_page in self.released_pages.iter() {
             let ending_index :usize= starting_index + BYTES_IN_U64;
-            self.u64_to_bytes(&mut arr[starting_index..ending_index], ele.clone());
-            starting_index = starting_index.saturating_add(8);
+            self.u64_to_bytes(&mut arr[starting_index..ending_index], released_page.clone());
+            starting_index = starting_index.saturating_add(BYTES_IN_U64);
         }
 
         Ok(())
@@ -90,7 +90,7 @@ impl Freelist {
     }
 
     fn bytes_to_u64(bytes: Option<&[u8]>) -> Result<u64, io::Error> {
-        let array: &[u8;8] = bytes.ok_or_else(|| ErrorKind::InvalidData)?
+        let array: &[u8;BYTES_IN_U64] = bytes.ok_or_else(|| ErrorKind::InvalidData)?
         .try_into().map_err( |_| ErrorKind::InvalidData)?;
         let number = u64::from_le_bytes(array.clone());
         Ok(number)

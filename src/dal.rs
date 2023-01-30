@@ -86,8 +86,8 @@ impl Dal {
     
     fn read_meta(&mut self) -> Result<(), io::Error> {
         let page = self.read_page(META_PAGE_NUM)?;
-        let mut page_data = [0u8; 8];
-        page_data.copy_from_slice(&page.data[..8]);
+        let mut page_data = [0u8; BYTES_IN_U64];
+        page_data.copy_from_slice(&page.data[..BYTES_IN_U64]);
         self.meta.deserialize(&page_data);
         
         Ok(())
@@ -95,7 +95,7 @@ impl Dal {
     
     fn write_meta(&mut self) -> Result<Page, io::Error> {
         let page = self.allocate_empty_page(META_PAGE_NUM); 
-        let page_data_slice:&mut [u8;8] = &mut page.data[..BYTES_IN_U64].try_into()
+        let page_data_slice:&mut [u8;BYTES_IN_U64] = &mut page.data[..BYTES_IN_U64].try_into()
         //.map_err( |e| io::Error::new(ErrorKind::InvalidData, e))?;
         .map_err( |_| ErrorKind::InvalidData)?;
         self.meta.serialize(page_data_slice)?;

@@ -10,7 +10,7 @@ fn main() {
     if let Ok(mut dal) = dal {
         let page_num = dal.freelist.get_next_page();
         let mut page = dal.allocate_empty_page(page_num);
-        page.data = pad_zeroes(b"No shit Sherlock".to_owned());  
+        page.data = pad_zeroes(b"Be yourself no matter what they say".to_owned());  
         dal.write_page(&page).unwrap();
         
     }
