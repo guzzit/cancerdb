@@ -1,4 +1,4 @@
-use std::{io::{self, ErrorKind, Error}, collections::HashMap};
+use std::{io::{self, ErrorKind, Error}, collections::HashMap, cmp::Ordering};
 
 use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64, META_PAGE_NUM}};
 
@@ -192,9 +192,49 @@ impl<'a> Node<'a> {
         Ok(())
     }
 
-    fn get_node(&mut self, page_number: PageNumber) -> Result<Node, io::Error>{
+    fn get_node(&mut self, page_number: PageNumber) -> Result<Node, io::Error> {
         let node = self.dal.get_node(page_number)?;
         Ok(node)
+    }
+
+    fn find_key_in_node(&mut self, key: &Box<[u8]>) -> Option<(bool, usize)> {
+
+        if self.items.is_empty() {
+            return None;
+        }
+
+        for (index, item) in self.items.iter().enumerate() {
+             
+            match  item.key.cmp(&key) {
+                Ordering::Less => continue,
+                Ordering::Equal => return Some((true, index)),
+                Ordering::Greater => return Some((false, index)),
+            }
+        }
+
+
+        Some((false, self.items.len().saturating_sub(1)))
+    }
+
+    fn find_key(&mut self, key: Box<[u8]>) -> Result<Option<usize>, io::Error> {
+        if let Some((key_found, index)) = self.find_key_in_node(&key) {
+            if key_found {
+                return Ok(Some(index));
+            }
+
+            if self.is_leaf() {
+                return Ok(None);//or not found enum
+            }
+
+            if let Some(child_node_page_num) = self.child_nodes.get(index) {
+                let mut node = self.get_node(child_node_page_num.clone())?;
+                return node.find_key(key);
+            }
+
+            return Ok(None);
+        }
+        //let Some(key_found, index) = self.find_key_in_node(key);
+        Ok(None)
     }
     
 }

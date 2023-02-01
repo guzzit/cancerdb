@@ -87,8 +87,8 @@ impl Dal {
     
     fn read_meta(&mut self) -> Result<(), io::Error> {
         let page = self.read_page(META_PAGE_NUM)?;
-        let mut page_data = [0u8; BYTES_IN_U64];
-        page_data.copy_from_slice(&page.data[..BYTES_IN_U64]);
+        let mut page_data = [0u8; BYTES_IN_U64*2];
+        page_data.copy_from_slice(&page.data[..BYTES_IN_U64*2]);
         self.meta.deserialize(&page_data);
         
         Ok(())
