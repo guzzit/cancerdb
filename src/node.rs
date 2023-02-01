@@ -1,10 +1,10 @@
-use std::{io::{self, ErrorKind}, collections::HashMap};
+use std::{io::{self, ErrorKind, Error}, collections::HashMap};
 
-use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64}};
+use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64, META_PAGE_NUM}};
 
 
-struct Node {
-    dal: Dal,
+pub struct Node<'a> {
+    dal: &'a mut Dal,
     items: Vec<Item>,
     //items: HashMap<Box<[u8]>, ItemValue>,
     page_number: PageNumber,
@@ -13,18 +13,30 @@ struct Node {
 
 //type ItemValue = (Box<[u8]>, Option<PageNumber>);
 
-impl Node {
-    fn new(dal: Dal, page_number: PageNumber) -> Self {
-        Node {
+impl<'a> Node<'a> {
+    pub fn build (dal: &'a mut Dal, page_number: PageNumber) -> Result<Self, io::Error> {
+
+        if page_number == META_PAGE_NUM {
+            return Err(Error::new(ErrorKind::InvalidData, 
+                "node page_number should not be equal to META_PAGE_NUM. /r/n 
+                node page_number: {page_number:?} /r/n
+                META_PAGE_NUM : {META_PAGE_NUM:?}"))
+        }
+
+        Ok(Node {
             dal,
             items: Vec::new(),
             page_number,
             child_nodes: Vec::new(),
-        }
+        })
     }
 
     fn is_leaf(&self) -> bool {
         self.child_nodes.is_empty()
+    }
+
+    pub fn get_page_number(&self) -> PageNumber {
+        self.page_number
     }
 
     pub fn serialize<const A: usize>(&self, arr: &mut[u8; A]) -> Result<(), io::Error> {
@@ -166,6 +178,25 @@ impl Node {
         //check that A is greater or equal to num.len()
         arr[..num.len()].copy_from_slice(&num);
     }
+
+    fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
+        self.dal.write_node(node)?;
+        Ok(())
+    }
+
+    fn write_nodes(&mut self, nodes: &Vec<Node>) -> Result<(), io::Error> {
+        for node in nodes.iter() {
+            self.write_node(node)?
+        }
+        
+        Ok(())
+    }
+
+    fn get_node(&mut self, page_number: PageNumber) -> Result<Node, io::Error>{
+        let node = self.dal.get_node(page_number)?;
+        Ok(node)
+    }
+    
 }
 
 struct Item {

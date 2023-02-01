@@ -2,9 +2,10 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, ErrorKind};
 use std::os::unix::prelude::FileExt;
 
-use crate::freelist::Freelist;
+use crate::freelist::{Freelist, PageNumber};
 use crate::constants::{META_PAGE_NUM, BYTES_IN_U64};
 use crate::meta::Meta;
+use crate::node::Node;
 
 
 pub const PAGE_SIZE:usize = 1024 * 4;
@@ -120,7 +121,27 @@ impl Dal {
         
         Ok(page)
     }
+
+    pub fn get_node(&mut self, page_number: PageNumber) -> Result<Node, io::Error> {
+        let mut page = self.read_page(page_number)?;
+        let mut node = Node::build(self, page_number)?;
+        node.deserialize(&mut page.data)?;
+        Ok(node)
+    }
     
+    pub fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
+        //let page_number = self.freelist.get_next_page();
+        let mut page = self.allocate_empty_page(node.get_page_number());
+        //let mut node = Node::new(self, page_number);
+        node.serialize(&mut page.data)?;
+        self.write_page(&page)?;
+
+        Ok(())
+    }
+
+    fn delete_node(&mut self, page_number: PageNumber) {
+        self.freelist.release_page(page_number);
+    }
 }
 
 pub struct Page {

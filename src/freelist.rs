@@ -36,8 +36,8 @@ impl Freelist {
 
     // should there be a check to ensure that the page is empty? or at least to 
     // clear the page to be extra sure it's empty
-    fn release_page(&mut self, page_num: PageNumber) {
-        self.released_pages.push(page_num);
+    pub fn release_page(&mut self, page_number: PageNumber) {
+        self.released_pages.push(page_number);
         
     }
 
