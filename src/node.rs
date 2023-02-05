@@ -129,8 +129,10 @@ impl<'a> Node<'a> {
             let offset =  u16::from_le_bytes(offset.clone());
 
             let mut key_length = [0; BYTES_IN_U16]; let mut offset:usize = offset.try_into().map_err(|_| ErrorKind::InvalidData)?;
-            key_length.copy_from_slice(&arr[offset..offset+2]) ;
-            let key_length =  u16::from_le_bytes(key_length.clone());let key_length:usize = key_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
+            //key_length.copy_from_slice(&arr[offset..offset+2]) ;
+            key_length.copy_from_slice(&arr[offset..offset+BYTES_IN_U16]) ;
+            let key_length =  u16::from_le_bytes(key_length.clone());
+            let key_length:usize = key_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
 
             let mut key: Box<[u8]> = Box::new([0u8]);
             key.copy_from_slice(&arr[offset..offset+key_length]);
@@ -192,7 +194,7 @@ impl<'a> Node<'a> {
         Ok(())
     }
 
-    fn get_node(&mut self, page_number: PageNumber) -> Result<Node, io::Error> {
+    fn get_node(& mut self, page_number: PageNumber) -> Result<Node, io::Error> {
         let node = self.dal.get_node(page_number)?;
         Ok(node)
     }
@@ -216,10 +218,12 @@ impl<'a> Node<'a> {
         Some((false, self.items.len().saturating_sub(1)))
     }
 
-    fn find_key(&mut self, key: Box<[u8]>) -> Result<Option<usize>, io::Error> {
+    pub fn find_key(&mut self, key: Box<[u8]>) -> Result<Option<Item>, io::Error> {
         if let Some((key_found, index)) = self.find_key_in_node(&key) {
             if key_found {
-                return Ok(Some(index));
+                let item = self.items.get(index).ok_or_else(|| ErrorKind::InvalidData)?;
+                return Ok(Some(item.clone()));
+                //return Ok(Some((index, node)));
             }
 
             if self.is_leaf() {
@@ -227,8 +231,9 @@ impl<'a> Node<'a> {
             }
 
             if let Some(child_node_page_num) = self.child_nodes.get(index) {
-                let mut node = self.get_node(child_node_page_num.clone())?;
-                return node.find_key(key);
+                let mut child_node = self.get_node(child_node_page_num.clone())?;
+                
+                return Node::find_key(&mut child_node, key);
             }
 
             return Ok(None);
@@ -236,10 +241,32 @@ impl<'a> Node<'a> {
         //let Some(key_found, index) = self.find_key_in_node(key);
         Ok(None)
     }
+
+    // pub fn find_key(&'a mut self, key: Box<[u8]>) -> Result<Option<(usize, &'a mut Node<'a>)>, io::Error> {
+    //     if let Some((key_found, index)) = self.find_key_in_node(&key) {
+    //         if key_found {
+    //             return Ok(Some((index, self)));
+    //         }
+
+    //         if self.is_leaf() {
+    //             return Ok(None);//or not found enum
+    //         }
+
+    //         if let Some(child_node_page_num) = self.child_nodes.get(index) {
+    //             self = & mut self.get_node(child_node_page_num.clone())?;
+    //             return self.find_key(key);
+    //         }
+
+    //         return Ok(None);
+    //     }
+    //     //let Some(key_found, index) = self.find_key_in_node(key);
+    //     Ok(None)
+    // }
     
 }
 
-struct Item {
+#[derive(Clone, Debug)]
+pub struct Item {
     key: Box<[u8]>,
     value: Box<[u8]>,
 }
