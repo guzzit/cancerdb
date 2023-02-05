@@ -105,16 +105,24 @@ impl<'a> Node<'a> {
     }
 
     pub fn deserialize<const A: usize>(&mut self, arr: &mut [u8; A]) -> Result<(), io::Error>  {  
-        let mut is_leaf = [0; BYTES_IN_U16];
-        is_leaf.copy_from_slice(&arr[..BYTES_IN_U16]) ;
-        let is_leaf =  u16::from_le_bytes(is_leaf.clone());
+        //let mut is_leaf = [0; BYTES_IN_U16];
+        //is_leaf.copy_from_slice(&arr[..BYTES_IN_U16]) ;
+        //let is_leaf =  u16::from_le_bytes(is_leaf.clone());
+        
+        let mut is_leaf = [0u8];
+        is_leaf.copy_from_slice(&arr[..1]) ;
+        let is_leaf =  u8::from_le_bytes(is_leaf.clone());
+
+        // let mut items_length = [0; BYTES_IN_U16];
+        // items_length.copy_from_slice(&arr[BYTES_IN_U16..BYTES_IN_U16*2]) ;
+        // let items_length =  u16::from_le_bytes(items_length.clone());
 
         let mut items_length = [0; BYTES_IN_U16];
-        items_length.copy_from_slice(&arr[BYTES_IN_U16..BYTES_IN_U16*2]) ;
+        items_length.copy_from_slice(&arr[1..3]) ;
         let items_length =  u16::from_le_bytes(items_length.clone());
 
         let mut i = 0;
-        let mut starting_index = BYTES_IN_U16*2;
+        let mut starting_index = 3;
         while i < items_length {
             if is_leaf == 0 {
                 let mut child_node_page_number = [0; BYTES_IN_U64];
@@ -128,28 +136,35 @@ impl<'a> Node<'a> {
             offset.copy_from_slice(&arr[starting_index..starting_index+2]) ;
             let offset =  u16::from_le_bytes(offset.clone());
 
-            let mut key_length = [0; BYTES_IN_U16]; let mut offset:usize = offset.try_into().map_err(|_| ErrorKind::InvalidData)?;
+            let mut key_length = [0u8];//[0; BYTES_IN_U16]; 
+            let mut offset:usize = offset.try_into().map_err(|_| ErrorKind::InvalidData)?;
+            //offset = offset.saturating_add(1);
             //key_length.copy_from_slice(&arr[offset..offset+2]) ;
-            key_length.copy_from_slice(&arr[offset..offset+BYTES_IN_U16]) ;
-            let key_length =  u16::from_le_bytes(key_length.clone());
+            key_length.copy_from_slice(&arr[offset..offset+1]) ;
+            let key_length =  u8::from_le_bytes(key_length.clone());
             let key_length:usize = key_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
 
-            let mut key: Box<[u8]> = Box::new([0u8]);
+            let mut key: Box<[u8]> = vec![0; key_length].into_boxed_slice().to_owned();
             key.copy_from_slice(&arr[offset..offset+key_length]);
 
             // should saturating_add be used or not?
-            offset = offset.saturating_add(key_length);
+            offset = offset.saturating_add(key_length+1);
 
 
-            let mut value_length = [0; BYTES_IN_U16];
-            value_length.copy_from_slice(&arr[offset..offset+2]) ;
-            let value_length =  u16::from_le_bytes(value_length.clone());let value_length:usize = value_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
+            let mut value_length =  [0u8];//[0; BYTES_IN_U16];
+            //value_length.copy_from_slice(&arr[offset..offset+2]) ;
+            value_length.copy_from_slice(&arr[offset..offset+1]) ;
+            //let value_length =  u16::from_le_bytes(value_length.clone());let value_length:usize = value_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
+            let value_length =  u8::from_le_bytes(value_length.clone());
+            let value_length:usize = value_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
 
-            let mut value: Box<[u8]> = Box::new([0u8]);
+            let mut value: Box<[u8]> =  vec![0; value_length].into_boxed_slice().to_owned();// Box::new([0u8]);
             value.copy_from_slice(&arr[offset..offset+value_length]);
 
             let item = Item::new(key, value);
             self.items.push(item);
+
+            i = i.saturating_add(1);
         }
         if is_leaf == 0 && self.child_nodes.len() > self.items.len() {
             let mut child_node_page_number = [0; BYTES_IN_U64];
