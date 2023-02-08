@@ -11,7 +11,7 @@ fn main() {
     if let Ok(mut dal) = dal {
         let mut node = dal.get_node(dal.meta.root_page.unwrap()).unwrap();
         let key = b"Key1".to_owned();
-        let key: Box<[u8]> = Box::new(key);
+        let key: Box<[u8; 4]> = Box::new(key);
         //let (key_index, node) = node.find_key(key).unwrap().unwrap();//add getter function for items
         let item = node.find_key(key).unwrap().unwrap();//add getter function for items
 

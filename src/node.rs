@@ -1,6 +1,6 @@
 use std::{io::{self, ErrorKind, Error}, collections::HashMap, cmp::Ordering};
 
-use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64, META_PAGE_NUM}};
+use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64, META_PAGE_NUM, BYTE_IN_U8}};
 
 
 pub struct Node<'a> {
@@ -104,71 +104,74 @@ impl<'a> Node<'a> {
         Ok(())
     }
 
-    pub fn deserialize<const A: usize>(&mut self, arr: &mut [u8; A]) -> Result<(), io::Error>  {  
-        //let mut is_leaf = [0; BYTES_IN_U16];
-        //is_leaf.copy_from_slice(&arr[..BYTES_IN_U16]) ;
-        //let is_leaf =  u16::from_le_bytes(is_leaf.clone());
-        
+    // may need to cut all the steps into smaller functions
+    pub fn deserialize<const A: usize>(&mut self, arr: &mut [u8; A]) -> Result<(), io::Error>  {    
+        // read leaf      
         let mut is_leaf = [0u8];
-        is_leaf.copy_from_slice(&arr[..1]) ;
-        let is_leaf =  u8::from_le_bytes(is_leaf.clone());
+        is_leaf.copy_from_slice(&arr[..BYTE_IN_U8]) ;
+        let is_leaf =  u8::from_le_bytes(is_leaf);
 
-        // let mut items_length = [0; BYTES_IN_U16];
-        // items_length.copy_from_slice(&arr[BYTES_IN_U16..BYTES_IN_U16*2]) ;
-        // let items_length =  u16::from_le_bytes(items_length.clone());
-
+        // read items_length
         let mut items_length = [0; BYTES_IN_U16];
-        items_length.copy_from_slice(&arr[1..3]) ;
-        let items_length =  u16::from_le_bytes(items_length.clone());
+        let items_length_end = BYTE_IN_U8 + BYTES_IN_U16;
+        items_length.copy_from_slice(&arr[BYTE_IN_U8..items_length_end]) ;
+        let items_length =  u16::from_le_bytes(items_length);
 
         let mut i = 0;
-        let mut starting_index = 3;
+        let mut left_position = items_length_end;
         while i < items_length {
             if is_leaf == 0 {
+                // read child node
                 let mut child_node_page_number = [0; BYTES_IN_U64];
-                child_node_page_number.copy_from_slice(&arr[starting_index..starting_index+BYTES_IN_U64]) ;
-                let child_node_page_number =  u64::from_le_bytes(child_node_page_number.clone());
+                let child_node_page_number_end = left_position + BYTES_IN_U64;
+                child_node_page_number.copy_from_slice(&arr[left_position..child_node_page_number_end]);
+                let child_node_page_number =  u64::from_le_bytes(child_node_page_number);
                 self.child_nodes.push(child_node_page_number);
-                starting_index = starting_index.saturating_add(BYTES_IN_U64);
+                left_position = left_position + BYTES_IN_U64;
             }
 
+            // read offset
             let mut offset = [0; BYTES_IN_U16];
-            offset.copy_from_slice(&arr[starting_index..starting_index+2]) ;
-            let offset =  u16::from_le_bytes(offset.clone());
+            offset.copy_from_slice(&arr[left_position..left_position+BYTES_IN_U16]) ;
+            let offset =  u16::from_le_bytes(offset);
+            left_position = left_position + BYTES_IN_U64;
 
-            let mut key_length = [0u8];//[0; BYTES_IN_U16]; 
+            // read key length
+            let mut key_length = [0u8];
             let mut offset:usize = offset.try_into().map_err(|_| ErrorKind::InvalidData)?;
-            //offset = offset.saturating_add(1);
-            //key_length.copy_from_slice(&arr[offset..offset+2]) ;
-            key_length.copy_from_slice(&arr[offset..offset+1]) ;
-            let key_length =  u8::from_le_bytes(key_length.clone());
-            let key_length:usize = key_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
+            key_length.copy_from_slice(&arr[offset..offset+BYTE_IN_U8]);
+            let key_length =  u8::from_le_bytes(key_length);
 
+            // read key
+            let key_length:usize = key_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
             let mut key: Box<[u8]> = vec![0; key_length].into_boxed_slice().to_owned();
+            // the extra one byte you add to the offset is for the key length (explain better)
+            offset = offset + 1;
             key.copy_from_slice(&arr[offset..offset+key_length]);
 
-            // should saturating_add be used or not?
-            offset = offset.saturating_add(key_length+1);
+            offset = offset + key_length;
 
-
-            let mut value_length =  [0u8];//[0; BYTES_IN_U16];
-            //value_length.copy_from_slice(&arr[offset..offset+2]) ;
+            // read value length
+            let mut value_length =  [0u8];;
             value_length.copy_from_slice(&arr[offset..offset+1]) ;
-            //let value_length =  u16::from_le_bytes(value_length.clone());let value_length:usize = value_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
             let value_length =  u8::from_le_bytes(value_length.clone());
-            let value_length:usize = value_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
 
-            let mut value: Box<[u8]> =  vec![0; value_length].into_boxed_slice().to_owned();// Box::new([0u8]);
+            //read value
+            let value_length:usize = value_length.try_into().map_err(|_| ErrorKind::InvalidData)?;
+            // the extra one byte you add to the offset is for the value length (explain better)
+            let mut value: Box<[u8]> =  vec![0; value_length].into_boxed_slice().to_owned();
+            offset = offset + 1;
             value.copy_from_slice(&arr[offset..offset+value_length]);
 
             let item = Item::new(key, value);
             self.items.push(item);
 
-            i = i.saturating_add(1);
+            i = i + 1;
         }
+
         if is_leaf == 0 && self.child_nodes.len() > self.items.len() {
             let mut child_node_page_number = [0; BYTES_IN_U64];
-            child_node_page_number.copy_from_slice(&arr[starting_index..starting_index+BYTES_IN_U64]) ;
+            child_node_page_number.copy_from_slice(&arr[left_position..left_position+BYTES_IN_U64]) ;
             let child_node_page_number =  u64::from_le_bytes(child_node_page_number.clone());
             self.child_nodes.push(child_node_page_number);
         }
@@ -220,8 +223,10 @@ impl<'a> Node<'a> {
             return None;
         }
 
+
         for (index, item) in self.items.iter().enumerate() {
-             
+             let k = std::str::from_utf8(item.key.as_ref()).unwrap();
+             let v = std::str::from_utf8(item.value.as_ref()).unwrap();
             match  item.key.cmp(&key) {
                 Ordering::Less => continue,
                 Ordering::Equal => return Some((true, index)),
