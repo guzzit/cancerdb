@@ -45,6 +45,7 @@ impl Dal {
                         meta: Meta::new(),
                     };
     
+                    a.meta.root_page = Some(META_PAGE_NUM);
                     a.meta.freelist_page = Some(a.freelist.get_next_page()); 
                     a.write_meta()?;
                     a.write_freelist()?;
@@ -96,7 +97,7 @@ impl Dal {
     
     fn write_meta(&mut self) -> Result<Page, io::Error> {
         let page = self.allocate_empty_page(META_PAGE_NUM); 
-        let page_data_slice:&mut [u8;BYTES_IN_U64] = &mut page.data[..BYTES_IN_U64].try_into()
+        let page_data_slice:&mut [u8;BYTES_IN_U64*2] = &mut page.data[..BYTES_IN_U64*2].try_into()
         //.map_err( |e| io::Error::new(ErrorKind::InvalidData, e))?;
         .map_err( |_| ErrorKind::InvalidData)?;
         self.meta.serialize(page_data_slice)?;
@@ -124,7 +125,7 @@ impl Dal {
 
     pub fn get_node(&mut self, page_number: PageNumber) -> Result<Node, io::Error> {
         let mut page = self.read_page(page_number)?;
-        let mut node = Node::build(self, page_number)?;
+        let mut node = Node::build(page_number)?;
         node.deserialize(&mut page.data)?;
         Ok(node)
     }

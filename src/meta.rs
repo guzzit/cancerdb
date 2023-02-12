@@ -14,7 +14,7 @@ impl Meta {
     }
 
     //need to find a way to make arr type &mut[u8;BYTES_IN_U64]
-    pub fn serialize(&self, arr: &mut[u8; BYTES_IN_U64]) -> Result<(), io::Error>{
+    pub fn serialize(&self, arr: &mut[u8; BYTES_IN_U64*2]) -> Result<(), io::Error>{
         let root_page = self.root_page.ok_or_else(|| ErrorKind::InvalidData)?;
         let freelist_page = self.freelist_page.ok_or_else(|| ErrorKind::InvalidData)?;
 
