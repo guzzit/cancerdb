@@ -1,11 +1,11 @@
 use std::{io::{self, ErrorKind, Error}, collections::HashMap, cmp::Ordering};
 
-use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64, META_PAGE_NUM, BYTE_IN_U8}};
+use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64, META_PAGE_NUM, BYTE_IN_U8, NODE_HEADER_SIZE}};
 
 
 pub struct Node {
     //dal: &'a mut Dal,
-    items: Vec<Item>,
+    pub items: Vec<Item>,
     //items: HashMap<Box<[u8]>, ItemValue>,
     page_number: PageNumber,
     child_nodes: Vec<PageNumber>,
@@ -310,18 +310,23 @@ impl Node {
         arr[..num.len()].copy_from_slice(&num);
     }
 
-    fn write_node(&mut self, node: &Node, dal: &mut Dal) -> Result<(), io::Error> {
-        dal.write_node(node)?;
+    // fn write_node(&mut self, node: &Node, dal: &mut Dal) -> Result<(), io::Error> {
+    //     dal.write_node(node)?;
+    //     Ok(())
+    // }
+
+    fn write(&mut self, dal: &mut Dal) -> Result<(), io::Error> {
+        dal.write_node(self)?;
         Ok(())
     }
 
-    fn write_nodes(&mut self, nodes: &Vec<Node>, dal: &mut Dal) -> Result<(), io::Error> {
-        for node in nodes.iter() {
-            self.write_node(node, dal)?
-        }
+    // fn write_nodes(&mut self, nodes: &Vec<Node>, dal: &mut Dal) -> Result<(), io::Error> {
+    //     for node in nodes.iter() {
+    //         self.write_node(node, dal)?
+    //     }
         
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn get_node(& mut self, page_number: PageNumber, dal: &mut Dal) -> Result<Node, io::Error> {
         let node = dal.get_node(page_number)?;
@@ -372,6 +377,93 @@ impl Node {
         //let Some(key_found, index) = self.find_key_in_node(key);
         Ok(None)
     }
+
+    pub fn calculate_element_size(&self, item: &Item) -> usize {
+        let mut size = 0;
+        size = size + item.key.len() + item.value.len() + BYTE_IN_U8 + BYTE_IN_U8; //2 BYTE_IN_U8 values represent the lengths of 
+        //the key_length value and the value_length value
+        size = size + BYTES_IN_U64; //BYTES_IN_U64 represent the page num size
+        size
+    }
+
+    pub fn calculate_node_size(&self) -> usize {
+        let mut size = 0;
+        size = size + NODE_HEADER_SIZE; 
+
+        for item in self.items.iter() {
+            size = size + self.calculate_element_size(item);
+        }
+
+        // Add last page
+        size = size + BYTES_IN_U64;
+        size
+    }
+
+    fn add_item(&mut self, insertion_index: usize, item: Item) -> Result<(), io::Error>{
+        if insertion_index > self.items.len() {
+            // it should be an array out ot bounds error, not invalid data
+            return Err(Error::new(ErrorKind::InvalidData, 
+                "Array out of bouunds"));
+        }
+
+        self.items.insert(insertion_index, item);
+        Ok(())
+    }
+
+    fn is_overpopulated(&mut self, dal:&mut Dal) -> Result<bool, io::Error> {
+        dal.node_is_overpopulated(self)
+    }
+
+    fn is_underpopulated(&mut self, dal:&mut Dal) -> Result<bool, io::Error> {
+        dal.node_is_underpopulated(self)
+    }
+
+    fn split(&mut self, node:&mut Node, node_index: usize, split_index:usize, dal:&mut Dal) -> Result<(), io::Error> {
+        //check the two indices are less than item length - 1
+        let middle_item = node.items.get(split_index).ok_or_else(|| ErrorKind::InvalidData)?.clone();
+        let newNode = if node.is_leaf() {
+            let pg_num = dal.freelist.get_next_page();
+            let mut new_node = Node::build( pg_num)?;
+            //let (a, b) = node.items.split_at(split_index+1);
+            //new_node.items.append(&mut b.to_vec());
+            
+            let mut split_items: Vec<Item> = node.items.drain(split_index..).collect();
+            new_node.items.append(&mut split_items);
+            //self.write_node(&new_node, dal)?;
+            new_node.write(dal)?;
+            new_node
+        }
+        else {
+            let pg_num = dal.freelist.get_next_page();
+            let mut new_node = Node::build( pg_num)?;
+            // let (a, b) = node.items.split_at(split_index+1);
+            // let (c, d) = node.child_nodes.split_at(split_index+1);
+            // new_node.items.append(&mut b.to_vec());
+            // new_node.child_nodes.append(&mut d.to_vec());
+            let mut split_items: Vec<Item> = node.items.drain(split_index..).collect();
+            let mut split_child_nodes: Vec<u64> = node.child_nodes.drain(split_index..).collect();
+            new_node.items.append(&mut split_items);
+            new_node.child_nodes.append(&mut split_child_nodes);
+            //self.write_node(&new_node, dal)?;
+            new_node.write(dal)?;
+            new_node
+        };
+
+        self.add_item(node_index, middle_item)?;
+
+        //if self.child_nodes.len() == node_index + 1 {
+        //    self.child_nodes.push(newNode.page_number)
+        //}
+        //else {
+            self.child_nodes.insert(node_index, newNode.page_number);
+        //}
+
+        node.write(dal)?;
+        self.write(dal)?;
+
+        Ok(())
+    }
+
 
     // pub fn find_key(&'a mut self, key: Box<[u8]>) -> Result<Option<(usize, &'a mut Node<'a>)>, io::Error> {
     //     if let Some((key_found, index)) = self.find_key_in_node(&key) {

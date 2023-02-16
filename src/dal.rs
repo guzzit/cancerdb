@@ -3,18 +3,19 @@ use std::io::{self, ErrorKind};
 use std::os::unix::prelude::FileExt;
 
 use crate::freelist::{Freelist, PageNumber};
-use crate::constants::{META_PAGE_NUM, BYTES_IN_U64};
+use crate::constants::{META_PAGE_NUM, BYTES_IN_U64, PAGE_SIZE, NODE_HEADER_SIZE};
 use crate::meta::Meta;
 use crate::node::Node;
 
 
-pub const PAGE_SIZE:usize = 1024 * 4;
+
 /// Dal stands for Data Access Layer
 pub struct Dal {
    file: File,
    page_size: u64,
    pub freelist: Freelist,
    pub meta: Meta,
+   options: Options,
 }
 
 impl Dal {
@@ -30,6 +31,7 @@ impl Dal {
                     page_size: u64::try_from(PAGE_SIZE).unwrap_or_else(|_| 1024 * 4),
                     freelist: Freelist::new(),
                     meta: Meta::new(),
+                    options: Options::default(),
                 };
 
                 a.read_meta()?;
@@ -43,6 +45,7 @@ impl Dal {
                         page_size: u64::try_from(PAGE_SIZE).unwrap_or_else(|_| 1024 * 4),
                         freelist: Freelist::new(),
                         meta: Meta::new(),
+                        options: Options::default(),
                     };
     
                     a.meta.root_page = Some(META_PAGE_NUM);
@@ -143,6 +146,68 @@ impl Dal {
     fn delete_node(&mut self, page_number: PageNumber) {
         self.freelist.release_page(page_number);
     }
+
+    fn calculate_maximum_threshold(&mut self) -> Result<f32, io::Error> {
+        let page_size:u16 = u16::try_from(self.options.page_size).map_err(|_| ErrorKind::InvalidData)?;
+        let maximum_threshold = self.options.maximum_fill_percent * f32::try_from(page_size).map_err(|_| ErrorKind::InvalidData)?;
+        Ok(maximum_threshold)
+    }
+
+    pub fn node_is_overpopulated(&mut self, node:&Node) -> Result<bool, io::Error> {
+        let maximum_threshold = self.calculate_maximum_threshold()?;
+        let node_size = node.calculate_node_size();
+        //will u16 be enough to contain node_size?
+        let node_size = u16::try_from(node_size).map_err(|_| ErrorKind::InvalidData)?;
+        let node_size = f32::try_from(node_size).map_err(|_| ErrorKind::InvalidData)?;
+        
+        if node_size > maximum_threshold {
+            return Ok(true);
+        }
+        else {
+            return Ok(false);
+        }
+    }
+
+    fn calculate_minimum_threshold(&mut self) -> Result<f32, io::Error> {
+        let page_size:u16 = u16::try_from(self.options.page_size).map_err(|_| ErrorKind::InvalidData)?;
+        let minimum_threshold = self.options.minimum_fill_percent * f32::try_from(page_size).map_err(|_| ErrorKind::InvalidData)?;
+        Ok(minimum_threshold)
+    }
+
+    pub fn node_is_underpopulated(&mut self, node:&Node) -> Result<bool, io::Error> {
+        let minimum_threshold = self.calculate_minimum_threshold()?;
+        let node_size = node.calculate_node_size();
+        //will u16 be enough to contain node_size?
+        let node_size = u16::try_from(node_size).map_err(|_| ErrorKind::InvalidData)?;
+        let node_size = f32::try_from(node_size).map_err(|_| ErrorKind::InvalidData)?;
+        
+        if node_size < minimum_threshold {
+            return Ok(true);
+        }
+        else {
+            return Ok(false);
+        }
+    }
+
+    pub fn get_split_index(&mut self, node: &Node) -> Result<Option<usize>, io::Error> {
+        let mut node_size = 0;
+        node_size = node_size + NODE_HEADER_SIZE; 
+
+        for (index, item) in node.items.iter().enumerate() {
+            node_size = node_size + node.calculate_element_size(item);
+            let node_size = u16::try_from(node_size).map_err(|_| ErrorKind::InvalidData)?;
+            let node_size = f32::try_from(node_size).map_err(|_| ErrorKind::InvalidData)?;
+
+            //if we have enough space in the page and the item is not the last in the vector
+            if node_size > self.calculate_minimum_threshold()? && (index < node.items.len() - 1)  {
+                return Ok(Some(index + 1));
+            }
+        }
+
+        Ok(None)            
+    }
+
+
 }
 
 pub struct Page {
@@ -155,6 +220,23 @@ impl Page {
     fn new(num: u64) -> Self { 
         Page { num, data: [0u8; PAGE_SIZE] }
     }
+}
+
+struct Options {
+    page_size: usize,
+    minimum_fill_percent: f32,
+    maximum_fill_percent: f32,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            page_size: PAGE_SIZE,
+            minimum_fill_percent: 0.5,
+            maximum_fill_percent: 0.95,
+        }
+        
+    }   
 }
 
 pub fn add(left: usize, right: usize) -> usize {

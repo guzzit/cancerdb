@@ -1,3 +1,4 @@
+pub mod collection;
 pub mod constants;
 pub mod dal;
 pub mod freelist;
