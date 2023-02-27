@@ -2,7 +2,7 @@ use std::{io::{self, ErrorKind, Error}, collections::HashMap, cmp::Ordering};
 
 use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64, META_PAGE_NUM, BYTE_IN_U8, NODE_HEADER_SIZE}};
 
-
+#[derive(Clone, Debug)]
 pub struct Node {
     //dal: &'a mut Dal,
     pub items: Vec<Item>,
@@ -31,7 +31,7 @@ impl Node {
         })
     }
 
-    fn is_leaf(&self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         self.child_nodes.is_empty()
     }
 
@@ -354,7 +354,7 @@ impl Node {
         Some((false, self.items.len().saturating_sub(1)))
     }
 
-    pub fn find_key(&mut self, key: Box<[u8]>, dal: &mut Dal) -> Result<Option<Item>, io::Error> {
+    pub fn find_key(&mut self, key: &Box<[u8]>, dal: &mut Dal) -> Result<Option<Item>, io::Error> {
         if let Some((key_found, index)) = self.find_key_in_node(&key) {
             if key_found {
                 let item = self.items.get(index).ok_or_else(|| ErrorKind::InvalidData)?;
@@ -375,6 +375,56 @@ impl Node {
             return Ok(None);
         }
         //let Some(key_found, index) = self.find_key_in_node(key);
+        Ok(None)
+    }
+
+    // pub fn find_node(&mut self, key: &Box<[u8]>, dal: &mut Dal) -> Result<Option<Node>, io::Error> {
+    //     if let Some((key_found, index)) = self.find_key_in_node(&key) {
+    //         if key_found {
+    //             let item = self.items.get(index).ok_or_else(|| ErrorKind::InvalidData)?;
+    //             return Ok(Some(self.clone()));
+    //             //return Ok(Some((index, node)));
+    //         }
+
+    //         if self.is_leaf() {
+    //             return Ok(None);//or not found enum
+    //         }
+
+    //         if let Some(child_node_page_num) = self.child_nodes.get(index) {
+    //             let mut child_node = self.get_node(child_node_page_num.clone(), dal)?;
+                
+    //             return Node::find_node(&mut child_node, key, dal);
+    //         }
+
+    //         return Ok(None);
+    //     }
+    //     Ok(None)
+    // }
+
+//rename usize type
+    pub fn find_node(&mut self, key: &Box<[u8]>, dal: &mut Dal, ancestor_indices: &Vec<usize>) -> Result<Option<(Node, usize)>, io::Error> {
+        if let Some((key_found, index)) = self.find_key_in_node(&key) {
+            ancestor_indices.push(index);
+            if key_found {
+                let item = self.items.get(index).ok_or_else(|| ErrorKind::InvalidData)?;
+                return Ok(Some((self.clone(), index)));
+                //return Ok(Some((index, node)));
+            }
+
+            // return the same with above, size the above should lead to an update
+            // and this should lead to an insert
+            if self.is_leaf() {
+                return Ok(Some((self.clone(), index)));//or not found enum
+            }
+
+            if let Some(child_node_page_num) = self.child_nodes.get(index) {
+                let mut child_node = self.get_node(child_node_page_num.clone(), dal)?;
+                
+                return Node::find_node(&mut child_node, key, dal, ancestor_indices);
+            }
+
+            return Ok(None);
+        }
         Ok(None)
     }
 
@@ -399,7 +449,7 @@ impl Node {
         size
     }
 
-    fn add_item(&mut self, insertion_index: usize, item: Item) -> Result<(), io::Error>{
+    pub fn add_item(&mut self, insertion_index: usize, item: Item) -> Result<(), io::Error>{
         if insertion_index > self.items.len() {
             // it should be an array out ot bounds error, not invalid data
             return Err(Error::new(ErrorKind::InvalidData, 
@@ -418,51 +468,109 @@ impl Node {
         dal.node_is_underpopulated(self)
     }
 
-    fn split(&mut self, node:&mut Node, node_index: usize, split_index:usize, dal:&mut Dal) -> Result<(), io::Error> {
-        //check the two indices are less than item length - 1
-        let middle_item = node.items.get(split_index).ok_or_else(|| ErrorKind::InvalidData)?.clone();
-        let newNode = if node.is_leaf() {
-            let pg_num = dal.freelist.get_next_page();
-            let mut new_node = Node::build( pg_num)?;
-            //let (a, b) = node.items.split_at(split_index+1);
-            //new_node.items.append(&mut b.to_vec());
-            
-            let mut split_items: Vec<Item> = node.items.drain(split_index..).collect();
-            new_node.items.append(&mut split_items);
-            //self.write_node(&new_node, dal)?;
-            new_node.write(dal)?;
-            new_node
-        }
-        else {
-            let pg_num = dal.freelist.get_next_page();
-            let mut new_node = Node::build( pg_num)?;
-            // let (a, b) = node.items.split_at(split_index+1);
-            // let (c, d) = node.child_nodes.split_at(split_index+1);
-            // new_node.items.append(&mut b.to_vec());
-            // new_node.child_nodes.append(&mut d.to_vec());
-            let mut split_items: Vec<Item> = node.items.drain(split_index..).collect();
-            let mut split_child_nodes: Vec<u64> = node.child_nodes.drain(split_index..).collect();
-            new_node.items.append(&mut split_items);
-            new_node.child_nodes.append(&mut split_child_nodes);
-            //self.write_node(&new_node, dal)?;
-            new_node.write(dal)?;
-            new_node
-        };
+    fn split_child(&mut self, child_node:&mut Node, child_node_index:usize, dal:&mut Dal) -> Result<(), io::Error> {
+        let (middle_item, new_node) = child_node.split(dal)?;
 
-        self.add_item(node_index, middle_item)?;
+        self.add_item(child_node_index, middle_item)?;
 
         //if self.child_nodes.len() == node_index + 1 {
         //    self.child_nodes.push(newNode.page_number)
         //}
         //else {
-            self.child_nodes.insert(node_index, newNode.page_number);
+            self.child_nodes.insert(child_node_index, new_node.page_number);
         //}
 
-        node.write(dal)?;
+        new_node.write(dal)?;
+        child_node.write(dal)?;
         self.write(dal)?;
 
         Ok(())
     }
+
+    fn split(&mut self, dal:&mut Dal) -> Result<(Item, Node), io::Error> {
+        let split_index = dal.get_split_index(self)?.ok_or_else(|| ErrorKind::InvalidData)?.clone();
+        let middle_item = self.items.get(split_index).ok_or_else(|| ErrorKind::InvalidData)?.clone();
+        let newNode = if self.is_leaf() {
+            //let pg_num = dal.freelist.get_next_page();
+            //let mut new_node = Node::build( pg_num)?;
+            let mut new_node = dal.new_node()?;
+            //let (a, b) = node.items.split_at(split_index+1);
+            //new_node.items.append(&mut b.to_vec());
+            
+            let mut split_items: Vec<Item> = self.items.drain(split_index..).collect();
+            new_node.items.append(&mut split_items);
+            //self.write_node(&new_node, dal)?;
+            //new_node.write(dal)?;
+            new_node
+        }
+        else {
+            //let pg_num = dal.freelist.get_next_page();
+            //let mut new_node = Node::build( pg_num)?;
+            let mut new_node = dal.new_node()?;
+            // let (a, b) = node.items.split_at(split_index+1);
+            // let (c, d) = node.child_nodes.split_at(split_index+1);
+            // new_node.items.append(&mut b.to_vec());
+            // new_node.child_nodes.append(&mut d.to_vec());
+            let mut split_items: Vec<Item> = self.items.drain(split_index..).collect();
+            let mut split_child_nodes: Vec<u64> = self.child_nodes.drain(split_index..).collect();
+            new_node.items.append(&mut split_items);
+            new_node.child_nodes.append(&mut split_child_nodes);
+            //self.write_node(&new_node, dal)?;
+            //new_node.write(dal)?;
+            new_node
+        };
+
+        Ok((middle_item, newNode))
+        
+    }
+
+    // fn split(&mut self, node:&mut Node, node_index: usize, split_index:usize, dal:&mut Dal) -> Result<(), io::Error> {
+    //     //check the two indices are less than item length - 1
+    //     let middle_item = node.items.get(split_index).ok_or_else(|| ErrorKind::InvalidData)?.clone();
+    //     let newNode = if node.is_leaf() {
+    //         //let pg_num = dal.freelist.get_next_page();
+    //         //let mut new_node = Node::build( pg_num)?;
+    //         let mut new_node = dal.new_node()?;
+    //         //let (a, b) = node.items.split_at(split_index+1);
+    //         //new_node.items.append(&mut b.to_vec());
+            
+    //         let mut split_items: Vec<Item> = node.items.drain(split_index..).collect();
+    //         new_node.items.append(&mut split_items);
+    //         //self.write_node(&new_node, dal)?;
+    //         new_node.write(dal)?;
+    //         new_node
+    //     }
+    //     else {
+    //         //let pg_num = dal.freelist.get_next_page();
+    //         //let mut new_node = Node::build( pg_num)?;
+    //         let mut new_node = dal.new_node()?;
+    //         // let (a, b) = node.items.split_at(split_index+1);
+    //         // let (c, d) = node.child_nodes.split_at(split_index+1);
+    //         // new_node.items.append(&mut b.to_vec());
+    //         // new_node.child_nodes.append(&mut d.to_vec());
+    //         let mut split_items: Vec<Item> = node.items.drain(split_index..).collect();
+    //         let mut split_child_nodes: Vec<u64> = node.child_nodes.drain(split_index..).collect();
+    //         new_node.items.append(&mut split_items);
+    //         new_node.child_nodes.append(&mut split_child_nodes);
+    //         //self.write_node(&new_node, dal)?;
+    //         new_node.write(dal)?;
+    //         new_node
+    //     };
+
+    //     self.add_item(node_index, middle_item)?;
+
+    //     //if self.child_nodes.len() == node_index + 1 {
+    //     //    self.child_nodes.push(newNode.page_number)
+    //     //}
+    //     //else {
+    //         self.child_nodes.insert(node_index, newNode.page_number);
+    //     //}
+
+    //     node.write(dal)?;
+    //     self.write(dal)?;
+
+    //     Ok(())
+    // }
 
 
     // pub fn find_key(&'a mut self, key: Box<[u8]>) -> Result<Option<(usize, &'a mut Node<'a>)>, io::Error> {
@@ -495,10 +603,14 @@ pub struct Item {
 }
 
 impl Item {
-    fn new(key: Box<[u8]>, value: Box<[u8]>) -> Self {
+    pub fn new(key: Box<[u8]>, value: Box<[u8]>) -> Self {
         Item{
             key,
             value,
         }
+    }
+
+    pub fn get_key(&self) -> Box<[u8]> {
+        self.key
     }
 }

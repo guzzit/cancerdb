@@ -126,6 +126,12 @@ impl Dal {
         Ok(page)
     }
 
+    pub fn new_node(&mut self) -> Result<Node, io::Error> {
+        let pg_num = self.freelist.get_next_page();
+        let mut new_node = Node::build( pg_num)?;
+        Ok(new_node)
+    }
+
     pub fn get_node(&mut self, page_number: PageNumber) -> Result<Node, io::Error> {
         let mut page = self.read_page(page_number)?;
         let mut node = Node::build(page_number)?;
