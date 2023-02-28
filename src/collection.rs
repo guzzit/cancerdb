@@ -9,7 +9,7 @@ struct Collection {
 }
 
 impl Collection {
-    fn new(name: Box<[u8]>, root: PageNumber) -> Self {
+    fn new(name: Box<[u8]>) -> Self {
         Collection { 
             name, 
             root:None, 
@@ -25,7 +25,7 @@ impl Collection {
     }
 
     fn put(&mut self, dal: &mut Dal, key: Box<[u8]>, value: Box<[u8]>) -> Result<(), io::Error> {
-        let item = Item::new(key, value);
+        let item = Item::new(key.clone(), value);
 
         let mut root:Node = match self.root {
             None => {
@@ -41,17 +41,47 @@ impl Collection {
         },
         };
 
-        let ancestor_nodes = Vec::new();
-        let (node_to_insert, insertion_index) = root.find_node(&key, dal, &ancestor_nodes)?.ok_or_else(|| ErrorKind::Other)?;
+        let mut ancestor_page_numbers = Vec::new();
+        let (mut node_to_insert, insertion_index) = root.find_node(&key, dal, &mut ancestor_page_numbers)?.ok_or_else(|| ErrorKind::Other)?;
         //let a = root.find_key(&key, dal);
         if !node_to_insert.is_leaf() && node_to_insert.items.get(insertion_index).is_some_and(|i| i.get_key().cmp(&key) == Ordering::Equal) == true {
             node_to_insert.items[insertion_index] = item;
         }
         else {
-            node_to_insert.add_item(insertion_index, item);
+            node_to_insert.add_item(insertion_index, item)?;
         }
 
         dal.write_node(&node_to_insert)?;
+
+        let ancestor_nodes = dal.get_nodes(ancestor_page_numbers)?;
+
+        let mut iterator = ancestor_nodes.iter().rev().enumerate();
+        iterator.next();
+
+        for (index, ancestor) in iterator {
+            if index == 0 {
+                break;
+            }
+            let mut parent_node = ancestor.clone();
+            let child_node_index = index + 1;
+            let mut child_node = ancestor_nodes.get(child_node_index).ok_or_else(|| ErrorKind::Other)?.clone();
+
+            if child_node.is_overpopulated(dal)? {
+                parent_node.split_child(&mut child_node, child_node_index, dal)?;
+            }
+        }
+
+        let mut root_node = ancestor_nodes.first().ok_or_else(|| ErrorKind::Other)?.clone();
+
+        if root_node.is_overpopulated(dal)? {
+            let mut new_root = Node::build(root_node.get_page_number())?;
+
+            new_root.split_child(&mut root_node, 0, dal)?;
+            self.root = Some(new_root.get_page_number());
+
+            //dal.write_node(&new_root);
+
+        }
 
         Ok(())
     }

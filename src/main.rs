@@ -1,5 +1,6 @@
 use cancerdb::{dal::Dal, constants::PAGE_SIZE};
 
+
 fn main() {
     //dbg!(std::mem::size_of::<Meta>());
 
@@ -11,8 +12,8 @@ fn main() {
     if let Ok(mut dal) = dal {
         let mut node = dal.get_node(2).unwrap();
         let key = b"Key1".to_owned();
-        let key: Box<[u8; 4]> = Box::new(key);
-        let item = node.find_key(key, &mut dal).unwrap().unwrap();//add getter function for items
+        let key: Box<[u8]> = Box::new(key);
+        let item = node.find_key(&key, &mut dal).unwrap().unwrap();//add getter function for items
 
         //
         // let pg_num = dal.freelist.get_next_page();

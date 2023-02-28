@@ -1,3 +1,4 @@
+#![feature(is_some_and)]
 pub mod collection;
 pub mod constants;
 pub mod dal;

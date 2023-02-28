@@ -1,4 +1,4 @@
-use std::{io::{self, ErrorKind, Error}, collections::HashMap, cmp::Ordering};
+use std::{io::{self, ErrorKind, Error}, cmp::Ordering};
 
 use crate::{dal::Dal, freelist::PageNumber, constants::{BYTES_IN_U16, BYTES_IN_U64, META_PAGE_NUM, BYTE_IN_U8, NODE_HEADER_SIZE}};
 
@@ -402,9 +402,9 @@ impl Node {
     // }
 
 //rename usize type
-    pub fn find_node(&mut self, key: &Box<[u8]>, dal: &mut Dal, ancestor_indices: &Vec<usize>) -> Result<Option<(Node, usize)>, io::Error> {
+    pub fn find_node(&mut self, key: &Box<[u8]>, dal: &mut Dal, ancestor_page_numbers: &mut Vec<PageNumber>) -> Result<Option<(Node, usize)>, io::Error> {
         if let Some((key_found, index)) = self.find_key_in_node(&key) {
-            ancestor_indices.push(index);
+            ancestor_page_numbers.push(self.get_page_number());
             if key_found {
                 let item = self.items.get(index).ok_or_else(|| ErrorKind::InvalidData)?;
                 return Ok(Some((self.clone(), index)));
@@ -420,7 +420,7 @@ impl Node {
             if let Some(child_node_page_num) = self.child_nodes.get(index) {
                 let mut child_node = self.get_node(child_node_page_num.clone(), dal)?;
                 
-                return Node::find_node(&mut child_node, key, dal, ancestor_indices);
+                return Node::find_node(&mut child_node, key, dal, ancestor_page_numbers);
             }
 
             return Ok(None);
@@ -460,7 +460,7 @@ impl Node {
         Ok(())
     }
 
-    fn is_overpopulated(&mut self, dal:&mut Dal) -> Result<bool, io::Error> {
+    pub fn is_overpopulated(&self, dal:&mut Dal) -> Result<bool, io::Error> {
         dal.node_is_overpopulated(self)
     }
 
@@ -468,8 +468,8 @@ impl Node {
         dal.node_is_underpopulated(self)
     }
 
-    fn split_child(&mut self, child_node:&mut Node, child_node_index:usize, dal:&mut Dal) -> Result<(), io::Error> {
-        let (middle_item, new_node) = child_node.split(dal)?;
+    pub fn split_child(&mut self, child_node:&mut Node, child_node_index:usize, dal:&mut Dal) -> Result<(), io::Error> {
+        let (middle_item, mut new_node) = child_node.split(dal)?;
 
         self.add_item(child_node_index, middle_item)?;
 
@@ -490,7 +490,7 @@ impl Node {
     fn split(&mut self, dal:&mut Dal) -> Result<(Item, Node), io::Error> {
         let split_index = dal.get_split_index(self)?.ok_or_else(|| ErrorKind::InvalidData)?.clone();
         let middle_item = self.items.get(split_index).ok_or_else(|| ErrorKind::InvalidData)?.clone();
-        let newNode = if self.is_leaf() {
+        let new_node = if self.is_leaf() {
             //let pg_num = dal.freelist.get_next_page();
             //let mut new_node = Node::build( pg_num)?;
             let mut new_node = dal.new_node()?;
@@ -520,7 +520,7 @@ impl Node {
             new_node
         };
 
-        Ok((middle_item, newNode))
+        Ok((middle_item, new_node))
         
     }
 
@@ -610,7 +610,7 @@ impl Item {
         }
     }
 
-    pub fn get_key(&self) -> Box<[u8]> {
-        self.key
+    pub fn get_key(&self) -> &Box<[u8]> {
+        &self.key
     }
 }

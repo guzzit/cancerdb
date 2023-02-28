@@ -128,7 +128,7 @@ impl Dal {
 
     pub fn new_node(&mut self) -> Result<Node, io::Error> {
         let pg_num = self.freelist.get_next_page();
-        let mut new_node = Node::build( pg_num)?;
+        let new_node = Node::build( pg_num)?;
         Ok(new_node)
     }
 
@@ -137,6 +137,15 @@ impl Dal {
         let mut node = Node::build(page_number)?;
         node.deserialize(&mut page.data)?;
         Ok(node)
+    }
+
+    pub fn get_nodes(&mut self, page_numbers: Vec<PageNumber>) -> Result<Vec<Node>, io::Error> {
+        let mut nodes = Vec::new();
+        for page_number in page_numbers.iter() {
+            nodes.push(self.get_node(page_number.clone())?);
+        }
+
+        Ok(nodes)
     }
     
     pub fn write_node(&mut self, node: &Node) -> Result<(), io::Error> {
@@ -153,13 +162,13 @@ impl Dal {
         self.freelist.release_page(page_number);
     }
 
-    fn calculate_maximum_threshold(&mut self) -> Result<f32, io::Error> {
+    fn calculate_maximum_threshold(&self) -> Result<f32, io::Error> {
         let page_size:u16 = u16::try_from(self.options.page_size).map_err(|_| ErrorKind::InvalidData)?;
         let maximum_threshold = self.options.maximum_fill_percent * f32::try_from(page_size).map_err(|_| ErrorKind::InvalidData)?;
         Ok(maximum_threshold)
     }
 
-    pub fn node_is_overpopulated(&mut self, node:&Node) -> Result<bool, io::Error> {
+    pub fn node_is_overpopulated(&self, node:&Node) -> Result<bool, io::Error> {
         let maximum_threshold = self.calculate_maximum_threshold()?;
         let node_size = node.calculate_node_size();
         //will u16 be enough to contain node_size?
