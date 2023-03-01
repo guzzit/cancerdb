@@ -8,7 +8,7 @@ pub struct Node {
     pub items: Vec<Item>,
     //items: HashMap<Box<[u8]>, ItemValue>,
     page_number: PageNumber,
-    child_nodes: Vec<PageNumber>,
+    pub child_nodes: Vec<PageNumber>,
 }
 
 //type ItemValue = (Box<[u8]>, Option<PageNumber>);
@@ -45,6 +45,10 @@ impl Node {
 
     pub fn get_page_number(&self) -> PageNumber {
         self.page_number
+    }
+
+    pub fn set_page_number(&mut self, dal: &mut Dal) {
+        self.page_number = dal.freelist.get_next_page();
     }
 
     pub fn serialize<const A: usize>(&self, arr: &mut[u8; A]) -> Result<(), io::Error> {
@@ -108,8 +112,8 @@ impl Node {
 
         }
 
-        //if !self.is_leaf() {
-        if !is_leaf && self.child_nodes.len() > self.items.len() {
+        if !self.is_leaf() {
+        //if !is_leaf && self.child_nodes.len() > self.items.len() {
             let ending_index :usize= starting_index + BYTES_IN_U64;
                 let child_node_page_number = self.child_nodes.last();
 
@@ -200,7 +204,7 @@ impl Node {
             i = i + 1;
         }
 
-        if is_leaf == 0 && self.child_nodes.len() > self.items.len() {
+        if is_leaf == 0 {
             let mut child_node_page_number = [0; BYTES_IN_U64];
             child_node_page_number.copy_from_slice(&arr[left_position..left_position+BYTES_IN_U64]);
             let child_node_page_number =  u64::from_le_bytes(child_node_page_number.clone());
@@ -372,6 +376,7 @@ impl Node {
                 return Node::find_key(&mut child_node, key, dal);
             }
 
+            // it should never get to this point. It is either a leaf or has that child node
             return Ok(None);
         }
         //let Some(key_found, index) = self.find_key_in_node(key);
@@ -406,7 +411,7 @@ impl Node {
         if let Some((key_found, index)) = self.find_key_in_node(&key) {
             ancestor_page_numbers.push(self.get_page_number());
             if key_found {
-                let item = self.items.get(index).ok_or_else(|| ErrorKind::InvalidData)?;
+                //let item = self.items.get(index).ok_or_else(|| ErrorKind::InvalidData)?;
                 return Ok(Some((self.clone(), index)));
                 //return Ok(Some((index, node)));
             }
@@ -414,7 +419,7 @@ impl Node {
             // return the same with above, size the above should lead to an update
             // and this should lead to an insert
             if self.is_leaf() {
-                return Ok(Some((self.clone(), index)));//or not found enum
+                return Ok(Some((self.clone(), 0)));//or not found enum
             }
 
             if let Some(child_node_page_num) = self.child_nodes.get(index) {
@@ -423,6 +428,7 @@ impl Node {
                 return Node::find_node(&mut child_node, key, dal, ancestor_page_numbers);
             }
 
+            // it should never get to this point. It is either a leaf or has that child node
             return Ok(None);
         }
         Ok(None)
@@ -489,14 +495,16 @@ impl Node {
 
     fn split(&mut self, dal:&mut Dal) -> Result<(Item, Node), io::Error> {
         let split_index = dal.get_split_index(self)?.ok_or_else(|| ErrorKind::InvalidData)?.clone();
-        let middle_item = self.items.get(split_index).ok_or_else(|| ErrorKind::InvalidData)?.clone();
+        //check that this remove call can't panic
+        let middle_item = self.items.remove(split_index);
         let new_node = if self.is_leaf() {
             //let pg_num = dal.freelist.get_next_page();
             //let mut new_node = Node::build( pg_num)?;
             let mut new_node = dal.new_node()?;
             //let (a, b) = node.items.split_at(split_index+1);
             //new_node.items.append(&mut b.to_vec());
-            
+
+            //check that drain call can't panic
             let mut split_items: Vec<Item> = self.items.drain(split_index..).collect();
             new_node.items.append(&mut split_items);
             //self.write_node(&new_node, dal)?;
@@ -511,6 +519,7 @@ impl Node {
             // let (c, d) = node.child_nodes.split_at(split_index+1);
             // new_node.items.append(&mut b.to_vec());
             // new_node.child_nodes.append(&mut d.to_vec());
+            //check that drain call can't panic
             let mut split_items: Vec<Item> = self.items.drain(split_index..).collect();
             let mut split_child_nodes: Vec<u64> = self.child_nodes.drain(split_index..).collect();
             new_node.items.append(&mut split_items);
@@ -612,5 +621,9 @@ impl Item {
 
     pub fn get_key(&self) -> &Box<[u8]> {
         &self.key
+    }
+
+    pub fn get_value(&self) -> &Box<[u8]> {
+        &self.value
     }
 }

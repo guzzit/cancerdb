@@ -15,12 +15,18 @@ pub struct Dal {
    page_size: u64,
    pub freelist: Freelist,
    pub meta: Meta,
-   options: Options,
+   options: DbOptions,
 }
 
 impl Dal {
-    pub fn build(path: &str) -> Result<Self, io::Error> {
+    //probably rename options to make it less confusing
+    pub fn build(path: &str, options: Option<DbOptions>) -> Result<Self, io::Error> {
         // OpenOptions::new().create(true).write(true).read(true).open(path)?; //fs::File::create(path)?;
+
+        let dal_options = match options {
+            Some(opt) => opt,
+            None => DbOptions::default()
+        };
 
         let file = OpenOptions::new().write(true).read(true).open(path);// fs::File::open(path);
         
@@ -31,7 +37,7 @@ impl Dal {
                     page_size: u64::try_from(PAGE_SIZE).unwrap_or_else(|_| 1024 * 4),
                     freelist: Freelist::new(),
                     meta: Meta::new(),
-                    options: Options::default(),
+                    options: dal_options,
                 };
 
                 a.read_meta()?;
@@ -39,13 +45,13 @@ impl Dal {
                 a
             },
             Err(error) => match error.kind() {
-                ErrorKind::NotFound => match File::create(path) {
+                ErrorKind::NotFound => match OpenOptions::new().write(true).read(true).create(true).open(path) {
                     Ok(file) => { let mut a = Dal {
                         file,
                         page_size: u64::try_from(PAGE_SIZE).unwrap_or_else(|_| 1024 * 4),
                         freelist: Freelist::new(),
                         meta: Meta::new(),
-                        options: Options::default(),
+                        options: dal_options,
                     };
     
                     a.meta.root_page = Some(META_PAGE_NUM);
@@ -237,15 +243,25 @@ impl Page {
     }
 }
 
-struct Options {
+pub struct DbOptions {
     page_size: usize,
     minimum_fill_percent: f32,
     maximum_fill_percent: f32,
 }
 
-impl Default for Options {
+impl DbOptions {
+    pub fn new( page_size: usize, minimum_fill_percent: f32, maximum_fill_percent: f32,) -> Self {
+        DbOptions {
+            page_size,
+            minimum_fill_percent,
+            maximum_fill_percent
+        }
+    }
+}
+
+impl Default for DbOptions {
     fn default() -> Self {
-        Options {
+        DbOptions {
             page_size: PAGE_SIZE,
             minimum_fill_percent: 0.5,
             maximum_fill_percent: 0.95,

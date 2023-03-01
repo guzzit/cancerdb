@@ -3,20 +3,20 @@ use std::{io::{self, ErrorKind}, cmp::Ordering};
 use crate::{freelist::PageNumber, dal::Dal, node::{Item, Node}};
 
 
-struct Collection {
+pub struct Collection {
     name: Box<[u8]>,
     root: Option<PageNumber>,
 }
 
 impl Collection {
-    fn new(name: Box<[u8]>) -> Self {
+    pub fn new(name: Box<[u8]>) -> Self {
         Collection { 
             name, 
             root:None, 
         }
     }
 
-    fn find(&self, dal: &mut Dal, key: Box<[u8]>) -> Result<Option<Item>, io::Error> {
+    pub fn find(&self, dal: &mut Dal, key: Box<[u8]>) -> Result<Option<Item>, io::Error> {
         let mut node = dal.get_node(self.root.ok_or_else(|| ErrorKind::InvalidData)?)?;
 
         let key = node.find_key(&key, dal)?;
@@ -24,7 +24,7 @@ impl Collection {
         Ok(key)
     }
 
-    fn put(&mut self, dal: &mut Dal, key: Box<[u8]>, value: Box<[u8]>) -> Result<(), io::Error> {
+    pub fn put(&mut self, dal: &mut Dal, key: Box<[u8]>, value: Box<[u8]>) -> Result<(), io::Error> {
         let item = Item::new(key.clone(), value);
 
         let mut root:Node = match self.root {
@@ -75,6 +75,10 @@ impl Collection {
 
         if root_node.is_overpopulated(dal)? {
             let mut new_root = Node::build(root_node.get_page_number())?;
+            
+
+            root_node.set_page_number(dal);
+            new_root.child_nodes.push(root_node.get_page_number());
 
             new_root.split_child(&mut root_node, 0, dal)?;
             self.root = Some(new_root.get_page_number());
