@@ -355,7 +355,9 @@ impl Node {
         }
 
 
-        Some((false, self.items.len().saturating_sub(1)))
+        //Some((false, self.child_nodes.len().saturating_sub(1)))
+        //Some((false, self.items.len().saturating_sub(1)))
+        Some((false, self.items.len()))
     }
 
     pub fn find_key(&mut self, key: &Box<[u8]>, dal: &mut Dal) -> Result<Option<Item>, io::Error> {
@@ -419,7 +421,7 @@ impl Node {
             // return the same with above, size the above should lead to an update
             // and this should lead to an insert
             if self.is_leaf() {
-                return Ok(Some((self.clone(), 0)));//or not found enum
+                return Ok(Some((self.clone(), index)));//or not found enum
             }
 
             if let Some(child_node_page_num) = self.child_nodes.get(index) {
@@ -483,7 +485,7 @@ impl Node {
         //    self.child_nodes.push(newNode.page_number)
         //}
         //else {
-            self.child_nodes.insert(child_node_index, new_node.page_number);
+            self.child_nodes.insert(child_node_index+1, new_node.page_number);
         //}
 
         new_node.write(dal)?;

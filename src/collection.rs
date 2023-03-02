@@ -59,11 +59,12 @@ impl Collection {
         iterator.next();
 
         for (index, ancestor) in iterator {
-            if index == 0 {
+            let child_node_index = index + 1;
+            if ancestor_nodes.get(child_node_index).is_none() {
                 break;
             }
             let mut parent_node = ancestor.clone();
-            let child_node_index = index + 1;
+            
             let mut child_node = ancestor_nodes.get(child_node_index).ok_or_else(|| ErrorKind::Other)?.clone();
 
             if child_node.is_overpopulated(dal)? {
