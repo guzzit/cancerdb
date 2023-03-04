@@ -61,9 +61,11 @@ impl Collection {
         iterator.next();
 
         for (index, ancestor) in iterator {
-            let child_node_index = index + 1;
+            //no need to add + 1 because the next() is already an increment, thus the + 1 was commented out 
+            //let child_node_index = index + 1;
+            let child_node_index = index;
             if ancestor_nodes.get(child_node_index).is_none() {
-                break;
+                continue;
             }
             let mut parent_node = ancestor.clone();
             
