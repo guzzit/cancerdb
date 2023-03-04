@@ -16,6 +16,16 @@ fn main() {
     collection.put(&mut dal, Box::new(b"Key4".to_owned()), Box::new(b"Value4".to_owned())).unwrap();
     collection.put(&mut dal, Box::new(b"Key5".to_owned()), Box::new(b"Value5".to_owned())).unwrap();
     collection.put(&mut dal, Box::new(b"Key6".to_owned()), Box::new(b"Value6".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Key1".to_owned()), Box::new(b"Value10".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Key6".to_owned()), Box::new(b"Value26".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Key7".to_owned()), Box::new(b"Value7".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Key8".to_owned()), Box::new(b"Value8".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Key9".to_owned()), Box::new(b"Value9".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Keys1".to_owned()), Box::new(b"Values1".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Key1".to_owned()), Box::new(b"Value1".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Keys2".to_owned()), Box::new(b"Values2".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Keys3".to_owned()), Box::new(b"Values3".to_owned())).unwrap();
+    collection.put(&mut dal, Box::new(b"Keys4".to_owned()), Box::new(b"Values4".to_owned())).unwrap();
 
     let item = collection.find(&mut dal, Box::new(b"Key1".to_owned())).unwrap();
 

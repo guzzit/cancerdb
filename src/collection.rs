@@ -31,6 +31,7 @@ impl Collection {
             None => {
                 let mut node = dal.new_node()?;
                 node.items.push(item);
+                //need to store collection page number as well
                 dal.write_node(&node)?;
                 self.root = Some(node.get_page_number());
                 return Ok(());
@@ -44,7 +45,8 @@ impl Collection {
         let mut ancestor_page_numbers = Vec::new();
         let (mut node_to_insert, insertion_index) = root.find_node(&key, dal, &mut ancestor_page_numbers)?.ok_or_else(|| ErrorKind::Other)?;
         //let a = root.find_key(&key, dal);
-        if !node_to_insert.is_leaf() && node_to_insert.items.get(insertion_index).is_some_and(|i| i.get_key().cmp(&key) == Ordering::Equal) == true {
+        //if !node_to_insert.is_leaf() && node_to_insert.items.get(insertion_index).is_some_and(|i| i.get_key().cmp(&key) == Ordering::Equal) == true {
+        if  node_to_insert.items.get(insertion_index).is_some_and(|i| i.get_key().cmp(&key) == Ordering::Equal) == true {
             node_to_insert.items[insertion_index] = item;
         }
         else {
